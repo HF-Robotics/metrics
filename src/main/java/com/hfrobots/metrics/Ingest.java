@@ -22,6 +22,7 @@ package com.hfrobots.metrics;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigException;
 import com.typesafe.config.ConfigFactory;
+import info.faljse.SDNotify.SDNotify;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -94,6 +95,10 @@ public class Ingest {
 
             // Bind and start to accept incoming connections.
             System.out.printf("waiting for messages...");
+
+            // Notify systemd we are running, if on Linux
+            SDNotify.sendNotify();
+
             b.bind(port).sync().channel().closeFuture().await();
         } finally {
             System.out.print("In Server Finally");
