@@ -24,6 +24,7 @@ import lombok.Value;
 import org.influxdb.InfluxDB;
 import org.influxdb.dto.Point;
 
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @Value
@@ -34,6 +35,8 @@ public class Gauge implements Metric {
     private final String name;
 
     private final Double value;
+
+    private final Map<String, String> tags;
 
     @Override
     public void persist(InfluxDB database) {

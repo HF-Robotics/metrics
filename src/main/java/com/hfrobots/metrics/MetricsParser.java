@@ -19,12 +19,18 @@
 
 package com.hfrobots.metrics;
 
+import com.google.common.base.Predicate;
+import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.Nullable;
 import java.util.*;
 
 @Slf4j
 public class MetricsParser {
+    public static final String TS_TAG_NAME = "_ts";
     // From the StatsD docs:
     //
     // The format of exported metrics is UTF-8 text, with metrics separated by newlines.
@@ -141,15 +147,49 @@ public class MetricsParser {
                 continue;
             }
 
+            int possibleTagIndex = type.indexOf("|#");
+
+            Map<String, String> tags = ImmutableMap.of();
+
+            if (possibleTagIndex != -1) {
+                try {
+                    String tagsString = type.substring(possibleTagIndex + 2);
+                    type = type.substring(0, possibleTagIndex);
+
+                    tags = Splitter.on(",").trimResults().omitEmptyStrings()
+                            .withKeyValueSeparator(":").split(tagsString);
+                } catch (IllegalArgumentException illegalArgs) {
+                    log.error("While parsing tags", illegalArgs);
+                }
+            }
+
             // normalize...Locale is here for a reason, ask me about lower/uppercase i
             type = type.toLowerCase(Locale.US);
+
+            long timestamp;
+
+            String possibleTimestamp = tags.get(TS_TAG_NAME);
+
+            if (possibleTimestamp != null && !possibleTimestamp.isEmpty()) {
+                tags = Maps.filterEntries(tags, entry -> !TS_TAG_NAME.equals(entry.getKey()));
+
+                try {
+                    timestamp = Long.valueOf(possibleTimestamp);
+                } catch (NumberFormatException nfe) {
+                    log.error("Timestamp (_ts) tag {} has an invalid character, please use only number values ", possibleTimestamp);
+                    timestamp = System.currentTimeMillis();
+                }
+            } else {
+                timestamp = System.currentTimeMillis();
+            }
 
             switch (type) {
                 case "g":
                     metricList.add(Gauge.builder()
                             .name(name)
                             .value(Double.valueOf(valueAsString))
-                            .timestamp(System.currentTimeMillis())
+                            .timestamp(timestamp)
+                            .tags(tags)
                             .build());
                 case "ms":
                     break;
