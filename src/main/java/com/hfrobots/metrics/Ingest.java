@@ -19,6 +19,9 @@
 
 package com.hfrobots.metrics;
 
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigException;
+import com.typesafe.config.ConfigFactory;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -27,35 +30,56 @@ import org.influxdb.BatchOptions;
 import org.influxdb.InfluxDB;
 import org.influxdb.InfluxDBFactory;
 
-import java.net.*;
-import java.util.Enumeration;
-
 public class Ingest {
     public static void main(String[] args) throws Exception {
-        InfluxDB influxDB = InfluxDBFactory.connect(
-                "http://localhost:8086",
-                "metrics", "metrics");
-        influxDB.setDatabase("metrics");
-        influxDB.enableBatch(BatchOptions.DEFAULTS);
+        InfluxDB influxDB = null;
+
+        Config conf = ConfigFactory.load();
+
+        try {
+            final String influxDbUrl = conf.getString("influxDbUrl");
+
+            final String influxDbUsername = conf.getString("influxDbUsername");
+
+            final String influxDbPassword = conf.getString("influxDbPassword");
+
+            final String influxDbDatabase = conf.getString("influxDbDatabase");
+
+            if (influxDbUrl == null || influxDbUrl.isEmpty()) {
+                System.exit(-1);
+            }
+
+            if (influxDbUsername == null || influxDbUsername.isEmpty()) {
+                System.exit(-1);
+            }
+
+            if (influxDbPassword == null || influxDbPassword.isEmpty()) {
+                System.exit(-1);
+            }
+
+            if (influxDbDatabase == null || influxDbDatabase.isEmpty()) {
+                System.exit(-1);
+            }
+
+            influxDB = InfluxDBFactory.connect(influxDbUrl, influxDbUsername, influxDbPassword);
+
+            influxDB.setDatabase(influxDbDatabase);
+            influxDB.enableBatch(BatchOptions.DEFAULTS);
+        } catch (ConfigException.Missing missingConfig) {
+            System.err.println("Missing or incomplete configuration, is config file provided via -Dconfig.file=path/to/config-file ?");
+            missingConfig.printStackTrace(System.err);
+
+            System.exit(1);
+        }
 
         int port = 8126;
 
         final NioEventLoopGroup group = new NioEventLoopGroup();
 
         try {
-            NetworkInterface ni = NetworkInterface.getByName("en1");
-            Enumeration<InetAddress> addresses = ni.getInetAddresses();
-
-            InetAddress localAddress = null;
-
-            while (addresses.hasMoreElements()) {
-                InetAddress address = addresses.nextElement();
-                if (address instanceof Inet4Address){
-                    localAddress = address;
-                }
-            }
-
             final Bootstrap b = new Bootstrap();
+
+            InfluxDB finalInfluxDB = influxDB;
 
             b.group(group).channel(NioDatagramChannel.class)
                     .option(ChannelOption.SO_BROADCAST, true)
@@ -64,7 +88,7 @@ public class Ingest {
                         public void initChannel(final NioDatagramChannel ch) throws Exception {
 
                             ChannelPipeline p = ch.pipeline();
-                            p.addLast(new IncomingPacketHandler(influxDB));
+                            p.addLast(new IncomingPacketHandler(finalInfluxDB));
                         }
                     });
 
