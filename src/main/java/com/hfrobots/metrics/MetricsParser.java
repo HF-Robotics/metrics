@@ -19,18 +19,21 @@
 
 package com.hfrobots.metrics;
 
-import com.google.common.base.Predicate;
 import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import lombok.extern.slf4j.Slf4j;
 
-import javax.annotation.Nullable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 @Slf4j
 public class MetricsParser {
-    public static final String TS_TAG_NAME = "_ts";
+    private static final String TS_TAG_NAME = "_ts";
+
     // From the StatsD docs:
     //
     // The format of exported metrics is UTF-8 text, with metrics separated by newlines.
@@ -86,14 +89,14 @@ public class MetricsParser {
         if (message == null) {
             log.warn("Null metric found while parsing, ignoring");
 
-            return Collections.EMPTY_LIST;
+            return ImmutableList.of();
         }
 
         String[] metricValues = message.split("\n");
         List<Metric> metricList = new ArrayList<>(metricValues.length);
 
         for (String metricValue : metricValues) {
-            metricValue.trim();
+            metricValue = metricValue.trim();
 
             int colonLocation = metricValue.indexOf(":");
 
@@ -156,6 +159,7 @@ public class MetricsParser {
                     String tagsString = type.substring(possibleTagIndex + 2);
                     type = type.substring(0, possibleTagIndex);
 
+                    //noinspection UnstableApiUsage
                     tags = Splitter.on(",").trimResults().omitEmptyStrings()
                             .withKeyValueSeparator(":").split(tagsString);
                 } catch (IllegalArgumentException illegalArgs) {
@@ -171,10 +175,11 @@ public class MetricsParser {
             String possibleTimestamp = tags.get(TS_TAG_NAME);
 
             if (possibleTimestamp != null && !possibleTimestamp.isEmpty()) {
+                //noinspection ConstantConditions
                 tags = Maps.filterEntries(tags, entry -> !TS_TAG_NAME.equals(entry.getKey()));
 
                 try {
-                    timestamp = Long.valueOf(possibleTimestamp);
+                    timestamp = Long.parseLong(possibleTimestamp);
                 } catch (NumberFormatException nfe) {
                     log.error("Timestamp (_ts) tag {} has an invalid character, please use only number values ", possibleTimestamp);
                     timestamp = System.currentTimeMillis();
