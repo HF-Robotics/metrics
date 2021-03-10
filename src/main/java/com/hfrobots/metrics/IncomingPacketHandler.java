@@ -40,9 +40,7 @@ public class IncomingPacketHandler extends SimpleChannelInboundHandler<DatagramP
         final int rcvPktLength = buf.readableBytes();
         final byte[] rcvPktBuf = new byte[rcvPktLength];
         buf.readBytes(rcvPktBuf);
-
-        System.out.print("p");
-
+        
         List<Metric> metrics = new MetricsParser().parseMetric(new String(rcvPktBuf, "UTF-8"));
 
         for (Metric metric : metrics) {
